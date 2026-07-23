@@ -5,7 +5,7 @@ name: Deploy PWA to GitHub Pages
 
 on:
   push:
-    branches: [main, claude/linux-multiplatform-os-d6jo9n]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
