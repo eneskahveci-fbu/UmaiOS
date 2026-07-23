@@ -1,0 +1,15 @@
+{
+  "name": "UmaiOS — AI Shell",
+  "short_name": "UmaiOS",
+  "description": "iPhone, Android ve desktop üstünde çalışan AI tabanlı kabuk.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f1a",
+  "theme_color": "#0b0f1a",
+  "lang": "tr",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
