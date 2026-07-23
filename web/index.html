@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f1a" />
+  <title>UmaiOS — AI Shell</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="apple-touch-icon" href="assets/icon.svg" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand"><span class="logo">◐</span> UmaiOS</div>
+      <div class="clock" id="clock">--:--</div>
+      <button id="themeBtn" class="icon-btn" title="Tema">◑</button>
+    </header>
+
+    <main class="shell">
+      <section class="apps" id="apps" aria-label="Uygulamalar"></section>
+
+      <section class="assistant">
+        <div class="messages" id="messages" aria-live="polite"></div>
+        <form class="composer" id="composer">
+          <input id="input" type="text" autocomplete="off"
+                 placeholder="Umai'ye sor veya bir komut yaz…" />
+          <button type="submit" class="send" title="Gönder">➤</button>
+        </form>
+      </section>
+    </main>
+
+    <footer class="statusbar" id="statusbar">Yer tutucu asistan · Ayarlar'dan sağlayıcı bağla</footer>
+  </div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
