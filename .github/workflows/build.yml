@@ -1,0 +1,71 @@
+name: Build and deploy UmaiOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out UmaiOS
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Buildroot host dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cpio rsync build-essential unzip bc libncurses-dev git
+
+      - name: Cache Buildroot downloads
+        uses: actions/cache@v4
+        with:
+          path: buildroot-dl
+          key: buildroot-dl-${{ hashFiles('configs/umaios_x86_64_defconfig', 'board/umaios/linux.config') }}
+          restore-keys: |
+            buildroot-dl-
+
+      - name: Build UmaiOS
+        env:
+          BR2_DL_DIR: ${{ github.workspace }}/buildroot-dl
+        run: |
+          mkdir -p "$BR2_DL_DIR"
+          ./build.sh
+
+      - name: Upload installable disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: umaios-images
+          path: |
+            output/images/bzImage
+            output/images/rootfs.ext4
+            output/images/rootfs.cpio.gz
+            output/images/start-qemu.sh
+          if-no-files-found: error
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

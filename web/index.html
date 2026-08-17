@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>UmaiOS - tarayıcıda çalışan hafif Linux</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="vendor/xterm/xterm.css">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --border: #2a2f37;
+    --text: #d7dbe0;
+    --muted: #8a8f98;
+    --accent: #57c785;
+    --accent-dim: #2f5c42;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.1rem; margin: 0; }
+  header .tag { color: var(--muted); font-size: 0.85rem; }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    gap: 1rem;
+  }
+  #panel {
+    width: min(900px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+  }
+  #status {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+    min-height: 1.2em;
+  }
+  #boot-btn {
+    background: var(--accent-dim);
+    color: #eafff1;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  #boot-btn:disabled { opacity: 0.5; cursor: default; }
+  #boot-btn:not(:disabled):hover { background: var(--accent); color: #05130a; }
+  #terminal {
+    width: min(900px, 100%);
+    display: none;
+  }
+  #terminal.visible { display: block; }
+  .xterm { padding: 8px; background: #000; border-radius: 8px; }
+  footer {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  a { color: var(--accent); }
+  code { background: #1c2026; padding: 0.1em 0.4em; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UmaiOS</h1>
+  <span class="tag">hafif Linux, tarayıcıda çalışır - v86 (WASM x86 emülatörü)</span>
+</header>
+
+<main>
+  <div id="panel">
+    <div id="status">Kontrol ediliyor...</div>
+    <button id="boot-btn" disabled>UmaiOS'u başlat</button>
+  </div>
+  <div id="terminal"></div>
+</main>
+
+<footer>
+  Bu sayfa tamamen istemci tarafında çalışır: kernel ve dosya sistemi imajı taranıcınıza indirilip
+  <a href="https://github.com/copy/v86" target="_blank" rel="noopener">v86</a> ile WebAssembly üzerinde
+  emüle edilir, sunucuya hiçbir veri gönderilmez. Kaynak: <a href="https://github.com/eneskahveci-fbu/UmaiOS" target="_blank" rel="noopener">UmaiOS</a>.
+</footer>
+
+<script src="vendor/xterm/xterm.js"></script>
+<script src="vendor/v86/libv86.js"></script>
+<script>
+"use strict";
+
+const statusEl = document.getElementById("status");
+const bootBtn = document.getElementById("boot-btn");
+const termEl = document.getElementById("terminal");
+
+const BZIMAGE_URL = "boot/bzImage";
+const INITRD_URL = "boot/rootfs.cpio.gz";
+
+async function imagesAvailable() {
+  try {
+    const [k, i] = await Promise.all([
+      fetch(BZIMAGE_URL, { method: "HEAD" }),
+      fetch(INITRD_URL, { method: "HEAD" }),
+    ]);
+    return k.ok && i.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+function boot() {
+  bootBtn.disabled = true;
+  statusEl.textContent = "UmaiOS indiriliyor ve başlatılıyor...";
+  termEl.classList.add("visible");
+
+  const term = new Terminal({ convertEol: true, cursorBlink: true });
+  term.open(termEl);
+
+  const emulator = new V86({
+    wasm_path: "vendor/v86/v86.wasm",
+    memory_size: 128 * 1024 * 1024,
+    bzimage: { url: BZIMAGE_URL },
+    initrd: { url: INITRD_URL },
+    cmdline: "console=ttyS0 root=/dev/ram0 rdinit=/sbin/init",
+    autostart: true,
+    serial_console: {
+      type: "xtermjs",
+      xterm_lib: Terminal,
+      container: termEl,
+    },
+  });
+
+  emulator.add_listener("emulator-ready", () => {
+    statusEl.textContent = "Çalışıyor. Giriş: root / umaios (lütfen ilk girişten sonra şifreyi değiştirin).";
+  });
+}
+
+(async function init() {
+  if (await imagesAvailable()) {
+    statusEl.textContent = "Hazır. Aşağıdaki düğmeye basarak UmaiOS'u tarayıcınızda başlatabilirsiniz.";
+    bootBtn.disabled = false;
+    bootBtn.addEventListener("click", boot, { once: true });
+  } else {
+    statusEl.innerHTML =
+      "Önyükleme imajları bulunamadı (<code>web/boot/bzImage</code>, <code>web/boot/rootfs.cpio.gz</code>).<br>" +
+      "Önce <code>./build.sh</code> ile UmaiOS'u derleyin, ya da bu depoda GitHub Actions build/deploy " +
+      "iş akışının GitHub Pages'e yayınlamasını bekleyin.";
+  }
+})();
+</script>
+
+</body>
+</html>
