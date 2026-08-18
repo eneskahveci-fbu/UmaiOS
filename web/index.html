@@ -143,7 +143,11 @@ function boot() {
     memory_size: 128 * 1024 * 1024,
     bzimage: { url: BZIMAGE_URL },
     initrd: { url: INITRD_URL },
-    cmdline: "console=ttyS0 root=/dev/ram0 rdinit=/sbin/init",
+    // Let the kernel run the initramfs's own /init: Buildroot installs a
+    // wrapper there that mounts devtmpfs and wires up /dev/console before
+    // exec'ing /sbin/init. Overriding this with rdinit= would boot without
+    // a populated /dev.
+    cmdline: "console=ttyS0",
     autostart: true,
     serial_console: {
       type: "xtermjs",

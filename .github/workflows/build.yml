@@ -28,8 +28,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq cpio rsync build-essential unzip bc libncurses-dev git
 
-      - name: Cache Buildroot downloads
-        uses: actions/cache@v4
+      # Restore/save are split (rather than actions/cache) so the download
+      # cache is still written when a later step fails - otherwise a failed
+      # build throws away an hour of downloads.
+      - name: Restore Buildroot downloads
+        id: dl-cache
+        uses: actions/cache/restore@v4
         with:
           path: buildroot-dl
           key: buildroot-dl-${{ hashFiles('configs/umaios_x86_64_defconfig', 'board/umaios/linux.config') }}
@@ -42,6 +46,34 @@ jobs:
         run: |
           mkdir -p "$BR2_DL_DIR"
           ./build.sh
+
+      - name: Save Buildroot downloads
+        if: always() && steps.dl-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: buildroot-dl
+          key: buildroot-dl-${{ hashFiles('configs/umaios_x86_64_defconfig', 'board/umaios/linux.config') }}
+
+      - name: Boot-test the image in QEMU
+        run: |
+          sudo apt-get install -y -qq qemu-system-x86
+          # Boot exactly what the web page boots: kernel + initramfs, serial
+          # console, and the initramfs's own /init.
+          timeout 180 qemu-system-x86_64 \
+            -M pc -m 256M \
+            -kernel output/images/bzImage \
+            -initrd output/images/rootfs.cpio.gz \
+            -append "console=ttyS0" \
+            -nographic -no-reboot \
+            </dev/null >boot.log 2>&1 || true
+          echo "===== serial output ====="
+          cat boot.log
+          echo "========================="
+          grep -q "Welcome to UmaiOS" boot.log \
+            || { echo "FAIL: /etc/issue never printed - userspace did not come up"; exit 1; }
+          grep -q "login:" boot.log \
+            || { echo "FAIL: no login prompt - getty did not start"; exit 1; }
+          echo "PASS: UmaiOS booted to a login prompt."
 
       - name: Upload installable disk image
         uses: actions/upload-artifact@v4

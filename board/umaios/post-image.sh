@@ -21,7 +21,7 @@ exec qemu-system-x86_64 \
 	-m 256M \
 	-kernel "${HERE}/bzImage" \
 	-initrd "${HERE}/rootfs.cpio.gz" \
-	-append "console=ttyS0 root=/dev/ram0" \
+	-append "console=ttyS0" \
 	-nographic \
 	-net nic,model=virtio -net user \
 	"$@"
