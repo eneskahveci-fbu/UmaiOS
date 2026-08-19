@@ -59,11 +59,14 @@ jobs:
           sudo apt-get install -y -qq qemu-system-x86
           # Boot exactly what the web page boots: kernel + initramfs, serial
           # console, and the initramfs's own /init.
+          # e1000 is QEMU's default NIC for -M pc; pin it explicitly so this
+          # also regression-tests that the kernel can actually drive it.
           timeout 180 qemu-system-x86_64 \
             -M pc -m 256M \
             -kernel output/images/bzImage \
             -initrd output/images/rootfs.cpio.gz \
             -append "console=ttyS0" \
+            -nic user,model=e1000 \
             -nographic -no-reboot \
             </dev/null >boot.log 2>&1 || true
           echo "===== serial output ====="
@@ -73,7 +76,9 @@ jobs:
             || { echo "FAIL: /etc/issue never printed - userspace did not come up"; exit 1; }
           grep -q "login:" boot.log \
             || { echo "FAIL: no login prompt - getty did not start"; exit 1; }
-          echo "PASS: UmaiOS booted to a login prompt."
+          grep -q "Starting network: OK" boot.log \
+            || { echo "FAIL: networking did not come up (no eth0 / DHCP lease)"; exit 1; }
+          echo "PASS: UmaiOS booted to a login prompt with networking up."
 
       - name: Upload installable disk image
         uses: actions/upload-artifact@v4
