@@ -86,11 +86,21 @@ jobs:
             || { echo "FAIL: /etc/issue never printed - userspace did not come up"; exit 1; }
           grep -q "login:" boot.log \
             || { echo "FAIL: no login prompt - getty did not start"; exit 1; }
-          grep -q "Starting network: OK" boot.log \
-            || { echo "FAIL: networking did not come up (no eth0 / DHCP lease)"; exit 1; }
+          # Don't match "Starting network: OK" as one string: the e1000 link
+          # message and udhcpc's output interleave between the label and its
+          # trailing OK. Assert on the driver binding and the DHCP lease,
+          # which is what actually proves networking works.
+          grep -q "eth0 NIC Link is Up" boot.log \
+            || { echo "FAIL: e1000 driver never brought eth0 up"; exit 1; }
+          grep -qE "lease of [0-9.]+ obtained" boot.log \
+            || { echo "FAIL: no DHCP lease on eth0"; exit 1; }
           echo "PASS: UmaiOS booted to a login prompt with networking up."
 
+      # Publish the images even when the boot test fails: they are what you
+      # need to reproduce the failure locally, and a broken assertion should
+      # not leave the run with nothing downloadable. The job still fails.
       - name: Upload installable disk image
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: umaios-images
@@ -107,6 +117,7 @@ jobs:
       # browser, with no repository clone (the Pages artifact below is kept
       # for deployment, but expires after a day).
       - name: Upload browser bundle
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: umaios-web
