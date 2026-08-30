@@ -17,6 +17,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # The full build takes ~70 min; cap the job so a hung step fails in a
+    # reasonable time instead of burning the 6-hour default (an apt-get
+    # that stalled on a dpkg lock once cost exactly that).
+    timeout-minutes: 150
     steps:
       - name: Check out UmaiOS
         uses: actions/checkout@v4
@@ -24,9 +28,15 @@ jobs:
           submodules: recursive
 
       - name: Install Buildroot host dependencies
+        timeout-minutes: 10
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq cpio rsync build-essential unzip bc libncurses-dev git
+          # Wait for (rather than fight) the runner's background
+          # unattended-upgrades holding the dpkg lock.
+          sudo apt-get update -qq -o Acquire::Retries=3
+          sudo apt-get install -y -qq -o DPkg::Lock::Timeout=300 \
+            cpio rsync build-essential unzip bc libncurses-dev git
 
       # Restore/save are split (rather than actions/cache) so the download
       # cache is still written when a later step fails - otherwise a failed
@@ -89,6 +99,18 @@ jobs:
             output/images/rootfs.ext4
             output/images/rootfs.cpio.gz
             output/images/start-qemu.sh
+          if-no-files-found: error
+
+      # Self-contained browser bundle: web page + vendored v86/xterm.js +
+      # the boot images post-image.sh copied into web/boot. Downloading and
+      # serving this one directory is all it takes to run UmaiOS in a
+      # browser, with no repository clone (the Pages artifact below is kept
+      # for deployment, but expires after a day).
+      - name: Upload browser bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: umaios-web
+          path: web
           if-no-files-found: error
 
       - name: Upload GitHub Pages artifact
