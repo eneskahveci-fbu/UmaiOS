@@ -96,6 +96,23 @@ jobs:
             || { echo "FAIL: no DHCP lease on eth0"; exit 1; }
           echo "PASS: UmaiOS booted to a login prompt with networking up."
 
+      # The QEMU test above cannot see browser-only breakage: QEMU brings its
+      # own firmware and its own console. Boot the actual published page in a
+      # real browser and log in with real keystrokes.
+      - name: Boot-test the page in a browser
+        timeout-minutes: 15
+        run: |
+          npm install --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+          python3 -m http.server 8099 --directory web &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://127.0.0.1:8099/ && break
+            sleep 1
+          done
+          node test/browser-boot-test.mjs http://127.0.0.1:8099
+
       # Publish the images even when the boot test fails: they are what you
       # need to reproduce the failure locally, and a broken assertion should
       # not leave the run with nothing downloadable. The job still fails.

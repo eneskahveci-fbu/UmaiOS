@@ -74,6 +74,16 @@
     display: none;
   }
   #terminal.visible { display: block; }
+  #screen_container {
+    width: min(900px, 100%);
+    display: none;
+    color: #b9c0c8;
+    background: #000;
+    border-radius: 8px;
+    padding: 8px;
+    overflow-x: auto;
+  }
+  #screen_container.visible { display: block; }
   .xterm { padding: 8px; background: #000; border-radius: 8px; }
   footer {
     padding: 0.75rem 1.5rem;
@@ -98,6 +108,15 @@
     <button id="boot-btn" disabled>UmaiOS'u başlat</button>
   </div>
   <div id="terminal"></div>
+
+  <!-- VGA output. The kernel talks to the serial console above; this shows
+       the firmware's own POST messages, so a machine that never starts is
+       visible instead of looking like an empty terminal. Structure required
+       by v86's ScreenAdapter. -->
+  <div id="screen_container">
+    <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
+    <canvas style="display: none"></canvas>
+  </div>
 </main>
 
 <footer>
@@ -114,6 +133,7 @@
 const statusEl = document.getElementById("status");
 const bootBtn = document.getElementById("boot-btn");
 const termEl = document.getElementById("terminal");
+const screenEl = document.getElementById("screen_container");
 
 const BZIMAGE_URL = "boot/bzImage";
 const INITRD_URL = "boot/rootfs.cpio.gz";
@@ -134,6 +154,7 @@ function boot() {
   bootBtn.disabled = true;
   statusEl.textContent = "UmaiOS indiriliyor ve başlatılıyor...";
   termEl.classList.add("visible");
+  screenEl.classList.add("visible");
 
   // v86 creates and wires the xterm.js instance itself via serial_console
   // below (input included). Creating a second Terminal here would just
@@ -142,13 +163,26 @@ function boot() {
   const emulator = new V86({
     wasm_path: "vendor/v86/v86.wasm",
     memory_size: 128 * 1024 * 1024,
+
+    // Firmware is mandatory, not decoration: v86 hands the kernel to the
+    // guest as an option ROM advertised over fw_cfg, and it is the BIOS
+    // that scans for it and jumps into it. With no BIOS the reset vector
+    // is empty, the CPU never executes anything, and the console stays
+    // blank forever. (Only multiboot has a BIOS-less fallback path.)
+    bios: { url: "vendor/bios/seabios.bin" },
+    vga_bios: { url: "vendor/bios/vgabios.bin" },
+
     bzimage: { url: BZIMAGE_URL },
     initrd: { url: INITRD_URL },
+    screen_container: screenEl,
     // Let the kernel run the initramfs's own /init: Buildroot installs a
     // wrapper there that mounts devtmpfs and wires up /dev/console before
     // exec'ing /sbin/init. Overriding this with rdinit= would boot without
     // a populated /dev.
-    cmdline: "console=ttyS0",
+    // Log to the VGA screen as well as the serial port; the last console=
+    // wins for /dev/console, so getty (and therefore the login prompt and
+    // your typing) stays on the serial terminal.
+    cmdline: "console=tty0 console=ttyS0",
     autostart: true,
     serial_console: {
       type: "xtermjs",
@@ -156,6 +190,10 @@ function boot() {
       container: termEl,
     },
   });
+
+  // Exposed so the automated browser boot test (and anyone debugging from
+  // the console) can observe the serial stream.
+  window.emulator = emulator;
 
   emulator.add_listener("emulator-ready", () => {
     statusEl.textContent = "Çalışıyor. Giriş: root / umaios (lütfen ilk girişten sonra şifreyi değiştirin).";
