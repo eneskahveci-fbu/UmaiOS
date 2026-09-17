@@ -135,9 +135,10 @@ function boot() {
   statusEl.textContent = "UmaiOS indiriliyor ve başlatılıyor...";
   termEl.classList.add("visible");
 
-  const term = new Terminal({ convertEol: true, cursorBlink: true });
-  term.open(termEl);
-
+  // v86 creates and wires the xterm.js instance itself via serial_console
+  // below (input included). Creating a second Terminal here would just
+  // occupy the same container without ever being connected to the
+  // emulator's serial port - keystrokes would go nowhere.
   const emulator = new V86({
     wasm_path: "vendor/v86/v86.wasm",
     memory_size: 128 * 1024 * 1024,
